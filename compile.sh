@@ -1,0 +1,1 @@
+clang++ -Wno-deprecated -std=c++17 -I/opt/homebrew/include -L/opt/homebrew/lib -lglfw -framework CoreVideo -framework OpenGL -framework IOKit -framework Cocoa -framework Carbon *.cpp
