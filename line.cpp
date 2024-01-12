@@ -22,7 +22,11 @@ int Line::append_colors(GLfloat* carr, size_t pos) {
     return 6;
 }
 
+glm::vec3 Line::stroke() {
+    return end - start;
+}
+
 Line::Line(glm::vec3 start, glm::vec3 end): start(start), end(end) {
 }
 
-Line::Line() {};
+Line::Line(): start(0, 0, 0), end(0, 0, 0) {};

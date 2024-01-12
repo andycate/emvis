@@ -5,13 +5,12 @@
 #include <GLFW/glfw3.h>
 
 class Line {
-    private:
+    public:
         glm::vec3 start;
         glm::vec3 end;
-
-    public:
         int append_vertices(GLfloat* varr, size_t pos);
         int append_colors(GLfloat* carr, size_t pos);
+        glm::vec3 stroke();
         Line(glm::vec3 start, glm::vec3 end);
         Line();
 };

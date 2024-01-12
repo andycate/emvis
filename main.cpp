@@ -68,8 +68,17 @@ GLfloat *g_compiled_color_data = new GLfloat[0];
 int compiled_length = 0;
 int compiled_vertices = 0;
 
+glm::vec3 pseudo_bs(Line *wire, int len, glm::vec3 r) {
+    glm::vec3 result(0, 0, 0);
+    for(int i = 0; i < len; i++) {
+        result += glm::cross(wire[i].stroke(), glm::normalize(r - wire[i].start)) / glm::length(r - wire[i].start) / glm::length(r - wire[i].start);
+    }
+    return result;
+}
+
 void compile_em()
 {
+    // Wires
     int segments = 50;
     Line wire[segments];
     for (int i = 0; i < segments; i++)
@@ -77,8 +86,10 @@ void compile_em()
         wire[i] = Line(glm::vec3(glm::cos(glm::two_pi<float>() * i / segments), glm::sin(glm::two_pi<float>() * i / segments), 0), glm::vec3(glm::cos(glm::two_pi<float>() * (i+1) / segments), glm::sin(glm::two_pi<float>() * (i+1) / segments), 0));
     }
 
-    compiled_length = segments * 2 * 3 * sizeof(GLfloat);
-    compiled_vertices = segments * 2 * 3;
+    int samples = 41 * 41 * 41;
+
+    compiled_vertices = segments * 2 * 3 + samples * 2 * 3;
+    compiled_length = compiled_vertices * sizeof(GLfloat);
     g_compiled_vertex_data = new GLfloat[compiled_vertices];
     g_compiled_color_data = new GLfloat[compiled_vertices];
     for (int i = 0; i < segments; i++)
@@ -86,6 +97,34 @@ void compile_em()
         wire[i].append_vertices(g_compiled_vertex_data, i * 6);
         wire[i].append_colors(g_compiled_color_data, i * 6);
     }
+
+    // B-field lines
+    int tmp_cnt = 0;
+    for(float x = -2; x <= 2; x+= 0.1) {
+        for(float y = -2; y <= 2; y+= 0.1) {
+            for(float z = -2; z <= 2; z+= 0.1) {
+                glm::vec b = pseudo_bs(wire, segments, glm::vec3(x, y, z));
+                float bstrength = glm::length(b);
+                b = glm::normalize(b) / 40.0f;
+                g_compiled_vertex_data[segments * 6 + tmp_cnt + 0] = x + b.x;
+                g_compiled_vertex_data[segments * 6 + tmp_cnt + 1] = y + b.y;
+                g_compiled_vertex_data[segments * 6 + tmp_cnt + 2] = z + b.z;
+                g_compiled_vertex_data[segments * 6 + tmp_cnt + 3] = x - b.x;
+                g_compiled_vertex_data[segments * 6 + tmp_cnt + 4] = y - b.y;
+                g_compiled_vertex_data[segments * 6 + tmp_cnt + 5] = z - b.z;
+
+                g_compiled_color_data[segments * 6 + tmp_cnt + 0] = bstrength / 15.0f;
+                g_compiled_color_data[segments * 6 + tmp_cnt + 1] = 0.0f;
+                g_compiled_color_data[segments * 6 + tmp_cnt + 2] = 0.0f;
+                g_compiled_color_data[segments * 6 + tmp_cnt + 3] = bstrength / 15.0f;
+                g_compiled_color_data[segments * 6 + tmp_cnt + 4] = 0.0f;
+                g_compiled_color_data[segments * 6 + tmp_cnt + 5] = 0.0f;
+
+                tmp_cnt += 6;
+            }
+        }
+    }
+
     glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
     glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_vertex_data, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
