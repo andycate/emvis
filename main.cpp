@@ -68,10 +68,13 @@ GLfloat *g_compiled_color_data = new GLfloat[0];
 int compiled_length = 0;
 int compiled_vertices = 0;
 
-glm::vec3 pseudo_bs(Line *wire, int len, glm::vec3 r) {
+glm::vec3 pseudo_bs(Line *wire, int wires, int len, glm::vec3 r) {
     glm::vec3 result(0, 0, 0);
-    for(int i = 0; i < len; i++) {
-        result += glm::cross(wire[i].stroke(), glm::normalize(r - wire[i].start)) / glm::length(r - wire[i].start) / glm::length(r - wire[i].start);
+    for(int w = 0; w < wires; w++) {
+        for(int i = 0; i < len; i++) {
+            int index = w * len + i;
+            result += glm::cross(wire[index].stroke(), glm::normalize(r - wire[index].start)) / glm::length(r - wire[index].start) / glm::length(r - wire[index].start);
+        }
     }
     return result;
 }
@@ -101,19 +104,23 @@ glm::vec3 hsvToRgb(glm::vec3 hsv) {
 void compile_em()
 {
     // Wires
+    int wires = 2;
     int segments = 50;
-    Line wire[segments];
+    Line wire[wires][segments];
     for (int i = 0; i < segments; i++)
     {
-        wire[i] = Line(glm::vec3(glm::cos(glm::two_pi<float>() * i / segments), glm::sin(glm::two_pi<float>() * i / segments), 0), glm::vec3(glm::cos(glm::two_pi<float>() * (i+1) / segments), glm::sin(glm::two_pi<float>() * (i+1) / segments), 0));
+        wire[0][i] = Line(glm::vec3(glm::cos(glm::two_pi<float>() * i / segments), glm::sin(glm::two_pi<float>() * i / segments), -0.8), glm::vec3(glm::cos(glm::two_pi<float>() * (i+1) / segments), glm::sin(glm::two_pi<float>() * (i+1) / segments), -0.8));
+        wire[1][i] = Line(glm::vec3(glm::cos(glm::two_pi<float>() * i / segments), glm::sin(glm::two_pi<float>() * i / segments), 0.8), glm::vec3(glm::cos(glm::two_pi<float>() * (i+1) / segments), glm::sin(glm::two_pi<float>() * (i+1) / segments), 0.8));
     }
 
-    int samples = 1000;
+    int samples = 400;
     int tracks = 50;
     int layers = 5;
 
-    compiled_vertices = 3 * 2 * 3 + segments * 2 * 3 + samples * 2 * 3 * tracks * layers;
+    compiled_vertices = 3 * 2 * 3 + wires * segments * 2 * 3 + samples * 2 * 3 * tracks * layers;
     compiled_length = compiled_vertices * sizeof(GLfloat);
+    delete[] g_compiled_vertex_data;
+    delete[] g_compiled_color_data;
     g_compiled_vertex_data = new GLfloat[compiled_vertices];
     g_compiled_color_data = new GLfloat[compiled_vertices];
     int tmp_cnt = 0;
@@ -163,11 +170,12 @@ void compile_em()
     tmp_cnt = 18;
 
     // Current wires
-    for (int i = 0; i < segments; i++)
-    {
-        wire[i].append_vertices(g_compiled_vertex_data, tmp_cnt);
-        wire[i].append_colors(g_compiled_color_data, tmp_cnt);
-        tmp_cnt += 6;
+    for(int w = 0; w < wires; w++) {
+        for(int i = 0; i < segments; i++) {
+            wire[w][i].append_vertices(g_compiled_vertex_data, tmp_cnt);
+            wire[w][i].append_colors(g_compiled_color_data, tmp_cnt);
+            tmp_cnt += 6;
+        }
     }
 
     // B-field lines
@@ -177,8 +185,8 @@ void compile_em()
             glm::vec3 track1(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)), glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)), 0.0);
             glm::vec3 track2(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)), glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)), 0.0);
             for(int i = 0; i < samples / 2; i++) {
-                glm::vec b1 = pseudo_bs(wire, segments, track1);
-                glm::vec b2 = pseudo_bs(wire, segments, track2);
+                glm::vec b1 = pseudo_bs(&wire[0][0], wires, segments, track1);
+                glm::vec b2 = pseudo_bs(&wire[0][0], wires, segments, track2);
                 float bstrength1 = glm::length(b1);
                 float bstrength2 = glm::length(b2);
                 b1 = glm::normalize(b1) * len;
@@ -222,6 +230,8 @@ void compile_em()
             }
         }
     }
+
+    std::cout << tmp_cnt << ":" << compiled_vertices << std::endl;
 
     // int tmp_cnt = 0;
     // for(float x = -2; x <= 2; x+= 0.1) {
