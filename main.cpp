@@ -52,6 +52,7 @@ struct View
 /* global variables */
 int width = 800;
 int height = 600;
+bool ortho_view = false;
 Point *lastMousePt = new Point;
 Point *delta = new Point;
 int drag = 0;
@@ -79,43 +80,81 @@ glm::vec3 pseudo_bs(Line *wire, int wires, int len, glm::vec3 r) {
     return result;
 }
 
-glm::vec3 hsvToRgb(glm::vec3 hsv) {
-    float h = hsv.x, s = hsv.y, v = hsv.z;
-    float r, g, b;
+glm::vec3 hsvToRgb(glm::vec3 hsv)
+{
+    double      hh, p, q, t, ff;
+    long        i;
+    glm::vec3         out;
 
-    int i = static_cast<int>(h * 6);
-    float f = h * 6 - i;
-    float p = v * (1 - s);
-    float q = v * (1 - f * s);
-    float t = v * (1 - (1 - f) * s);
-
-    switch (i % 6) {
-        case 0: r = v, g = t, b = p; break;
-        case 1: r = q, g = v, b = p; break;
-        case 2: r = p, g = v, b = t; break;
-        case 3: r = p, g = q, b = v; break;
-        case 4: r = t, g = p, b = v; break;
-        case 5: r = v, g = p, b = q; break;
+    if(hsv.s <= 0.0) {       // < is bogus, just shuts up warnings
+        out.x = hsv.z;
+        out.y = hsv.z;
+        out.z = hsv.z;
+        return out;
     }
+    hh = hsv.x;
+    if(hh >= 1.0) hh = 0.0;
+    hh *= 6;
+    i = (long)hh;
+    ff = hh - i;
+    p = hsv.z * (1.0 - hsv.y);
+    q = hsv.z * (1.0 - (hsv.y * ff));
+    t = hsv.z * (1.0 - (hsv.y * (1.0 - ff)));
 
-    return glm::vec3(r, g, b);
+    switch(i) {
+    case 0:
+        out.x = hsv.z;
+        out.y = t;
+        out.z = p;
+        break;
+    case 1:
+        out.x = q;
+        out.y = hsv.z;
+        out.z = p;
+        break;
+    case 2:
+        out.x = p;
+        out.y = hsv.z;
+        out.z = t;
+        break;
+
+    case 3:
+        out.x = p;
+        out.y = q;
+        out.z = hsv.z;
+        break;
+    case 4:
+        out.x = t;
+        out.y = p;
+        out.z = hsv.z;
+        break;
+    case 5:
+    default:
+        out.x = hsv.z;
+        out.y = p;
+        out.z = q;
+        break;
+    }
+    return out;     
 }
 
 void compile_em()
 {
     // Wires
-    int wires = 2;
-    int segments = 50;
+    int wires = 4;
+    int segments = 80;
     Line wire[wires][segments];
     for (int i = 0; i < segments; i++)
     {
-        wire[0][i] = Line(glm::vec3(glm::cos(glm::two_pi<float>() * i / segments), glm::sin(glm::two_pi<float>() * i / segments), -0.8), glm::vec3(glm::cos(glm::two_pi<float>() * (i+1) / segments), glm::sin(glm::two_pi<float>() * (i+1) / segments), -0.8));
-        wire[1][i] = Line(glm::vec3(glm::cos(glm::two_pi<float>() * i / segments), glm::sin(glm::two_pi<float>() * i / segments), 0.8), glm::vec3(glm::cos(glm::two_pi<float>() * (i+1) / segments), glm::sin(glm::two_pi<float>() * (i+1) / segments), 0.8));
+        wire[0][i] = Line(glm::vec3(glm::cos(glm::two_pi<float>() * i / segments)-1.4, glm::sin(glm::two_pi<float>() * i / segments), 0.0), glm::vec3(glm::cos(glm::two_pi<float>() * (i+1) / segments)-1.4, glm::sin(glm::two_pi<float>() * (i+1) / segments), 0.0));
+        wire[1][i] = Line(glm::vec3(glm::cos(glm::two_pi<float>() * i / segments)+1.4, -glm::sin(glm::two_pi<float>() * i / segments), 0.0), glm::vec3(glm::cos(glm::two_pi<float>() * (i+1) / segments)+1.4, -glm::sin(glm::two_pi<float>() * (i+1) / segments), 0.0));
+        wire[2][i] = Line(glm::vec3(0.0, glm::sin(glm::two_pi<float>() * i / segments), glm::cos(glm::two_pi<float>() * i / segments)-1.4), glm::vec3(0.0, glm::sin(glm::two_pi<float>() * (i+1) / segments), glm::cos(glm::two_pi<float>() * (i+1) / segments)-1.4));
+        wire[3][i] = Line(glm::vec3(0.0, -glm::sin(glm::two_pi<float>() * i / segments), glm::cos(glm::two_pi<float>() * i / segments)+1.4), glm::vec3(0.0, -glm::sin(glm::two_pi<float>() * (i+1) / segments), glm::cos(glm::two_pi<float>() * (i+1) / segments)+1.4));
     }
 
-    int samples = 400;
+    int samples = 50;
     int tracks = 50;
-    int layers = 5;
+    int layers = 10;
 
     compiled_vertices = 3 * 2 * 3 + wires * segments * 2 * 3 + samples * 2 * 3 * tracks * layers;
     compiled_length = compiled_vertices * sizeof(GLfloat);
@@ -181,9 +220,9 @@ void compile_em()
     // B-field lines
     for(int l = 0; l < layers; l++) {
         for(int t = 0; t < tracks; t++) {
-            float len = 0.01;
-            glm::vec3 track1(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)), glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)), 0.0);
-            glm::vec3 track2(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)), glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)), 0.0);
+            float len = 0.05;
+            glm::vec3 track1(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 4.0, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 4.0, 0.0);
+            glm::vec3 track2(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 4.0, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 4.0, 0.0);
             for(int i = 0; i < samples / 2; i++) {
                 glm::vec b1 = pseudo_bs(&wire[0][0], wires, segments, track1);
                 glm::vec b2 = pseudo_bs(&wire[0][0], wires, segments, track2);
@@ -198,8 +237,10 @@ void compile_em()
                 g_compiled_vertex_data[tmp_cnt + 3] = track1.x + b1.x;
                 g_compiled_vertex_data[tmp_cnt + 4] = track1.y + b1.y;
                 g_compiled_vertex_data[tmp_cnt + 5] = track1.z + b1.z;
-
-                glm::vec3 c1 = hsvToRgb(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, bstrength1 / 10.0f));
+                
+                //glm::log(bstrength1 / 15.0f)+0.6
+                glm::vec3 c1 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength1 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
+                // std::cout << bstrength1 / 15.0f << std::endl;
 
                 g_compiled_color_data[tmp_cnt + 0] = c1.x;
                 g_compiled_color_data[tmp_cnt + 1] = c1.y;
@@ -207,6 +248,12 @@ void compile_em()
                 g_compiled_color_data[tmp_cnt + 3] = c1.x;
                 g_compiled_color_data[tmp_cnt + 4] = c1.y;
                 g_compiled_color_data[tmp_cnt + 5] = c1.z;
+                // g_compiled_color_data[tmp_cnt + 0] = 1;
+                // g_compiled_color_data[tmp_cnt + 1] = 1;
+                // g_compiled_color_data[tmp_cnt + 2] = 1;
+                // g_compiled_color_data[tmp_cnt + 3] = 1;
+                // g_compiled_color_data[tmp_cnt + 4] = 1;
+                // g_compiled_color_data[tmp_cnt + 5] = 1;
 
                 g_compiled_vertex_data[tmp_cnt + 6] = track2.x;
                 g_compiled_vertex_data[tmp_cnt + 7] = track2.y;
@@ -215,7 +262,8 @@ void compile_em()
                 g_compiled_vertex_data[tmp_cnt + 10] = track2.y - b2.y;
                 g_compiled_vertex_data[tmp_cnt + 11] = track2.z - b2.z;
 
-                glm::vec3 c2 = hsvToRgb(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, bstrength2 / 10.0f));
+                //glm::log(bstrength2 / 15.0f)+0.6
+                glm::vec3 c2 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength2 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
 
                 g_compiled_color_data[tmp_cnt + 6] = c2.x;
                 g_compiled_color_data[tmp_cnt + 7] = c2.y;
@@ -223,6 +271,12 @@ void compile_em()
                 g_compiled_color_data[tmp_cnt + 9] = c2.x;
                 g_compiled_color_data[tmp_cnt + 10] = c2.y;
                 g_compiled_color_data[tmp_cnt + 11] = c2.z;
+                // g_compiled_color_data[tmp_cnt + 6] = 1;
+                // g_compiled_color_data[tmp_cnt + 7] = 1;
+                // g_compiled_color_data[tmp_cnt + 8] = 1;
+                // g_compiled_color_data[tmp_cnt + 9] = 1;
+                // g_compiled_color_data[tmp_cnt + 10] = 1;
+                // g_compiled_color_data[tmp_cnt + 11] = 1;
 
                 tmp_cnt += 12;
                 track1 += b1;
@@ -232,6 +286,12 @@ void compile_em()
     }
 
     std::cout << tmp_cnt << ":" << compiled_vertices << std::endl;
+
+    // for(int i = 0; i < tmp_cnt; i+=3) {
+    //     if(glm::abs(g_compiled_color_data[i])<=0.01f && glm::abs(g_compiled_color_data[i+1])<=0.01f && glm::abs(g_compiled_color_data[i+2])<=0.01f) {
+    //         std::cout << i << std::endl;
+    //     }
+    // }
 
     // int tmp_cnt = 0;
     // for(float x = -2; x <= 2; x+= 0.1) {
@@ -325,6 +385,12 @@ void scroll_callback(GLFWwindow *window, double xoffset, double yoffset)
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
+    if(key == GLFW_KEY_F && action == GLFW_RELEASE) {
+        view->horiz = 0;
+        view->vert = 0;
+    } else if(key == GLFW_KEY_O && action == GLFW_RELEASE) {
+        ortho_view = !ortho_view;
+    }
 }
 
 void window_size_callback(GLFWwindow *window, int w, int h)
@@ -338,7 +404,12 @@ glm::mat4 get_mvp(float zoom, float y_angle, float vert_angle, float transx, flo
 {
 
     // Or, for an ortho camera :
-    // glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
+    if(ortho_view) {
+        float aspect = (float)width / (float)height;
+        Projection = glm::ortho(-zoom*aspect,zoom*aspect,-zoom,zoom,0.0f,100.0f); // In world coordinates
+    } else {
+        Projection = glm::perspective(glm::radians(view->fov), (float)width / (float)height, 0.1f, 100.0f);
+    }
 
     glm::vec3 cam = glm::vec3(glm::rotate(glm::mat4(1.0f), y_angle, glm::vec3(0, 1, 0)) *
                               glm::rotate(glm::mat4(1.0f), vert_angle, glm::vec3(1, 0, 0)) *
