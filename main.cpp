@@ -152,11 +152,11 @@ void compile_em()
         wire[3][i] = Line(glm::vec3(0.0, -glm::sin(glm::two_pi<float>() * i / segments), glm::cos(glm::two_pi<float>() * i / segments)+1.4), glm::vec3(0.0, -glm::sin(glm::two_pi<float>() * (i+1) / segments), glm::cos(glm::two_pi<float>() * (i+1) / segments)+1.4));
     }
 
-    int samples = 50;
+    int samples = 40;
     int tracks = 50;
     int layers = 10;
 
-    compiled_vertices = 3 * 2 * 3 + wires * segments * 2 * 3 + samples * 2 * 3 * tracks * layers;
+    compiled_vertices = 3 * 2 * 3 + wires * segments * 2 * 3 + wires * samples * 2 * 3 * tracks * layers;
     compiled_length = compiled_vertices * sizeof(GLfloat);
     delete[] g_compiled_vertex_data;
     delete[] g_compiled_color_data;
@@ -221,8 +221,206 @@ void compile_em()
     for(int l = 0; l < layers; l++) {
         for(int t = 0; t < tracks; t++) {
             float len = 0.05;
-            glm::vec3 track1(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 4.0, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 4.0, 0.0);
-            glm::vec3 track2(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 4.0, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 4.0, 0.0);
+            glm::vec3 track1(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 + 1.4, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, 0.0);
+            glm::vec3 track2(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 + 1.4, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, 0.0);
+            for(int i = 0; i < samples / 2; i++) {
+                glm::vec b1 = pseudo_bs(&wire[0][0], wires, segments, track1);
+                glm::vec b2 = pseudo_bs(&wire[0][0], wires, segments, track2);
+                float bstrength1 = glm::length(b1);
+                float bstrength2 = glm::length(b2);
+                b1 = glm::normalize(b1) * len;
+                b2 = glm::normalize(b2) * len;
+
+                g_compiled_vertex_data[tmp_cnt + 0] = track1.x;
+                g_compiled_vertex_data[tmp_cnt + 1] = track1.y;
+                g_compiled_vertex_data[tmp_cnt + 2] = track1.z;
+                g_compiled_vertex_data[tmp_cnt + 3] = track1.x + b1.x;
+                g_compiled_vertex_data[tmp_cnt + 4] = track1.y + b1.y;
+                g_compiled_vertex_data[tmp_cnt + 5] = track1.z + b1.z;
+                
+                //glm::log(bstrength1 / 15.0f)+0.6
+                glm::vec3 c1 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength1 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
+                // std::cout << bstrength1 / 15.0f << std::endl;
+
+                g_compiled_color_data[tmp_cnt + 0] = c1.x;
+                g_compiled_color_data[tmp_cnt + 1] = c1.y;
+                g_compiled_color_data[tmp_cnt + 2] = c1.z;
+                g_compiled_color_data[tmp_cnt + 3] = c1.x;
+                g_compiled_color_data[tmp_cnt + 4] = c1.y;
+                g_compiled_color_data[tmp_cnt + 5] = c1.z;
+                // g_compiled_color_data[tmp_cnt + 0] = 1;
+                // g_compiled_color_data[tmp_cnt + 1] = 1;
+                // g_compiled_color_data[tmp_cnt + 2] = 1;
+                // g_compiled_color_data[tmp_cnt + 3] = 1;
+                // g_compiled_color_data[tmp_cnt + 4] = 1;
+                // g_compiled_color_data[tmp_cnt + 5] = 1;
+
+                g_compiled_vertex_data[tmp_cnt + 6] = track2.x;
+                g_compiled_vertex_data[tmp_cnt + 7] = track2.y;
+                g_compiled_vertex_data[tmp_cnt + 8] = track2.z;
+                g_compiled_vertex_data[tmp_cnt + 9] = track2.x - b2.x;
+                g_compiled_vertex_data[tmp_cnt + 10] = track2.y - b2.y;
+                g_compiled_vertex_data[tmp_cnt + 11] = track2.z - b2.z;
+
+                //glm::log(bstrength2 / 15.0f)+0.6
+                glm::vec3 c2 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength2 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
+
+                g_compiled_color_data[tmp_cnt + 6] = c2.x;
+                g_compiled_color_data[tmp_cnt + 7] = c2.y;
+                g_compiled_color_data[tmp_cnt + 8] = c2.z;
+                g_compiled_color_data[tmp_cnt + 9] = c2.x;
+                g_compiled_color_data[tmp_cnt + 10] = c2.y;
+                g_compiled_color_data[tmp_cnt + 11] = c2.z;
+                // g_compiled_color_data[tmp_cnt + 6] = 1;
+                // g_compiled_color_data[tmp_cnt + 7] = 1;
+                // g_compiled_color_data[tmp_cnt + 8] = 1;
+                // g_compiled_color_data[tmp_cnt + 9] = 1;
+                // g_compiled_color_data[tmp_cnt + 10] = 1;
+                // g_compiled_color_data[tmp_cnt + 11] = 1;
+
+                tmp_cnt += 12;
+                track1 += b1;
+                track2 -= b2;
+            }
+        }
+    }
+    for(int l = 0; l < layers; l++) {
+        for(int t = 0; t < tracks; t++) {
+            float len = 0.05;
+            glm::vec3 track1(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 - 1.4, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, 0.0);
+            glm::vec3 track2(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 - 1.4, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, 0.0);
+            for(int i = 0; i < samples / 2; i++) {
+                glm::vec b1 = pseudo_bs(&wire[0][0], wires, segments, track1);
+                glm::vec b2 = pseudo_bs(&wire[0][0], wires, segments, track2);
+                float bstrength1 = glm::length(b1);
+                float bstrength2 = glm::length(b2);
+                b1 = glm::normalize(b1) * len;
+                b2 = glm::normalize(b2) * len;
+
+                g_compiled_vertex_data[tmp_cnt + 0] = track1.x;
+                g_compiled_vertex_data[tmp_cnt + 1] = track1.y;
+                g_compiled_vertex_data[tmp_cnt + 2] = track1.z;
+                g_compiled_vertex_data[tmp_cnt + 3] = track1.x + b1.x;
+                g_compiled_vertex_data[tmp_cnt + 4] = track1.y + b1.y;
+                g_compiled_vertex_data[tmp_cnt + 5] = track1.z + b1.z;
+                
+                //glm::log(bstrength1 / 15.0f)+0.6
+                glm::vec3 c1 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength1 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
+                // std::cout << bstrength1 / 15.0f << std::endl;
+
+                g_compiled_color_data[tmp_cnt + 0] = c1.x;
+                g_compiled_color_data[tmp_cnt + 1] = c1.y;
+                g_compiled_color_data[tmp_cnt + 2] = c1.z;
+                g_compiled_color_data[tmp_cnt + 3] = c1.x;
+                g_compiled_color_data[tmp_cnt + 4] = c1.y;
+                g_compiled_color_data[tmp_cnt + 5] = c1.z;
+                // g_compiled_color_data[tmp_cnt + 0] = 1;
+                // g_compiled_color_data[tmp_cnt + 1] = 1;
+                // g_compiled_color_data[tmp_cnt + 2] = 1;
+                // g_compiled_color_data[tmp_cnt + 3] = 1;
+                // g_compiled_color_data[tmp_cnt + 4] = 1;
+                // g_compiled_color_data[tmp_cnt + 5] = 1;
+
+                g_compiled_vertex_data[tmp_cnt + 6] = track2.x;
+                g_compiled_vertex_data[tmp_cnt + 7] = track2.y;
+                g_compiled_vertex_data[tmp_cnt + 8] = track2.z;
+                g_compiled_vertex_data[tmp_cnt + 9] = track2.x - b2.x;
+                g_compiled_vertex_data[tmp_cnt + 10] = track2.y - b2.y;
+                g_compiled_vertex_data[tmp_cnt + 11] = track2.z - b2.z;
+
+                //glm::log(bstrength2 / 15.0f)+0.6
+                glm::vec3 c2 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength2 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
+
+                g_compiled_color_data[tmp_cnt + 6] = c2.x;
+                g_compiled_color_data[tmp_cnt + 7] = c2.y;
+                g_compiled_color_data[tmp_cnt + 8] = c2.z;
+                g_compiled_color_data[tmp_cnt + 9] = c2.x;
+                g_compiled_color_data[tmp_cnt + 10] = c2.y;
+                g_compiled_color_data[tmp_cnt + 11] = c2.z;
+                // g_compiled_color_data[tmp_cnt + 6] = 1;
+                // g_compiled_color_data[tmp_cnt + 7] = 1;
+                // g_compiled_color_data[tmp_cnt + 8] = 1;
+                // g_compiled_color_data[tmp_cnt + 9] = 1;
+                // g_compiled_color_data[tmp_cnt + 10] = 1;
+                // g_compiled_color_data[tmp_cnt + 11] = 1;
+
+                tmp_cnt += 12;
+                track1 += b1;
+                track2 -= b2;
+            }
+        }
+    }
+    for(int l = 0; l < layers; l++) {
+        for(int t = 0; t < tracks; t++) {
+            float len = 0.05;
+            glm::vec3 track1(0.0f, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 + 1.4);
+            glm::vec3 track2(0.0f, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 + 1.4);
+            for(int i = 0; i < samples / 2; i++) {
+                glm::vec b1 = pseudo_bs(&wire[0][0], wires, segments, track1);
+                glm::vec b2 = pseudo_bs(&wire[0][0], wires, segments, track2);
+                float bstrength1 = glm::length(b1);
+                float bstrength2 = glm::length(b2);
+                b1 = glm::normalize(b1) * len;
+                b2 = glm::normalize(b2) * len;
+
+                g_compiled_vertex_data[tmp_cnt + 0] = track1.x;
+                g_compiled_vertex_data[tmp_cnt + 1] = track1.y;
+                g_compiled_vertex_data[tmp_cnt + 2] = track1.z;
+                g_compiled_vertex_data[tmp_cnt + 3] = track1.x + b1.x;
+                g_compiled_vertex_data[tmp_cnt + 4] = track1.y + b1.y;
+                g_compiled_vertex_data[tmp_cnt + 5] = track1.z + b1.z;
+                
+                //glm::log(bstrength1 / 15.0f)+0.6
+                glm::vec3 c1 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength1 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
+                // std::cout << bstrength1 / 15.0f << std::endl;
+
+                g_compiled_color_data[tmp_cnt + 0] = c1.x;
+                g_compiled_color_data[tmp_cnt + 1] = c1.y;
+                g_compiled_color_data[tmp_cnt + 2] = c1.z;
+                g_compiled_color_data[tmp_cnt + 3] = c1.x;
+                g_compiled_color_data[tmp_cnt + 4] = c1.y;
+                g_compiled_color_data[tmp_cnt + 5] = c1.z;
+                // g_compiled_color_data[tmp_cnt + 0] = 1;
+                // g_compiled_color_data[tmp_cnt + 1] = 1;
+                // g_compiled_color_data[tmp_cnt + 2] = 1;
+                // g_compiled_color_data[tmp_cnt + 3] = 1;
+                // g_compiled_color_data[tmp_cnt + 4] = 1;
+                // g_compiled_color_data[tmp_cnt + 5] = 1;
+
+                g_compiled_vertex_data[tmp_cnt + 6] = track2.x;
+                g_compiled_vertex_data[tmp_cnt + 7] = track2.y;
+                g_compiled_vertex_data[tmp_cnt + 8] = track2.z;
+                g_compiled_vertex_data[tmp_cnt + 9] = track2.x - b2.x;
+                g_compiled_vertex_data[tmp_cnt + 10] = track2.y - b2.y;
+                g_compiled_vertex_data[tmp_cnt + 11] = track2.z - b2.z;
+
+                //glm::log(bstrength2 / 15.0f)+0.6
+                glm::vec3 c2 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength2 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
+
+                g_compiled_color_data[tmp_cnt + 6] = c2.x;
+                g_compiled_color_data[tmp_cnt + 7] = c2.y;
+                g_compiled_color_data[tmp_cnt + 8] = c2.z;
+                g_compiled_color_data[tmp_cnt + 9] = c2.x;
+                g_compiled_color_data[tmp_cnt + 10] = c2.y;
+                g_compiled_color_data[tmp_cnt + 11] = c2.z;
+                // g_compiled_color_data[tmp_cnt + 6] = 1;
+                // g_compiled_color_data[tmp_cnt + 7] = 1;
+                // g_compiled_color_data[tmp_cnt + 8] = 1;
+                // g_compiled_color_data[tmp_cnt + 9] = 1;
+                // g_compiled_color_data[tmp_cnt + 10] = 1;
+                // g_compiled_color_data[tmp_cnt + 11] = 1;
+
+                tmp_cnt += 12;
+                track1 += b1;
+                track2 -= b2;
+            }
+        }
+    }
+    for(int l = 0; l < layers; l++) {
+        for(int t = 0; t < tracks; t++) {
+            float len = 0.05;
+            glm::vec3 track1(0.0f, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 - 1.4);
+            glm::vec3 track2(0.0f, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 - 1.4);
             for(int i = 0; i < samples / 2; i++) {
                 glm::vec b1 = pseudo_bs(&wire[0][0], wires, segments, track1);
                 glm::vec b2 = pseudo_bs(&wire[0][0], wires, segments, track2);
@@ -390,6 +588,14 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
         view->vert = 0;
     } else if(key == GLFW_KEY_O && action == GLFW_RELEASE) {
         ortho_view = !ortho_view;
+    } else if(key == GLFW_KEY_UP && action == GLFW_RELEASE) {
+        view->vert += glm::two_pi<float>()/48.0;
+    } else if(key == GLFW_KEY_DOWN && action == GLFW_RELEASE) {
+        view->vert -= glm::two_pi<float>()/48.0;
+    } else if(key == GLFW_KEY_LEFT && action == GLFW_RELEASE) {
+        view->horiz += glm::two_pi<float>()/48.0;
+    } else if(key == GLFW_KEY_RIGHT && action == GLFW_RELEASE) {
+        view->horiz -= glm::two_pi<float>()/48.0;
     }
 }
 
