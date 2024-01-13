@@ -77,34 +77,26 @@ std::vector<int> compiled_vertices_traces;
 void compile_em()
 {
     std::vector<Loop> loops;
-    loops.push_back(Loop::create_circle(glm::vec3(1.4, 0, 0), glm::vec3(0, 0, 1), 1.0, 1.0, 50));
-    loops.push_back(Loop::create_circle(glm::vec3(0, 0, 1.4), glm::vec3(-1, 0, 0), 1.0, 1.0, 50));
-    loops.push_back(Loop::create_circle(glm::vec3(-1.4, 0, 0), glm::vec3(0, 0, -1), 1.0, 1.0, 50));
-    loops.push_back(Loop::create_circle(glm::vec3(0, 0, -1.4), glm::vec3(1, 0, 0), 1.0, 1.0, 50));
+    int num_loops = 6;
+    for(int i = 0; i < num_loops; i++) {
+        loops.push_back(Loop::create_sine_circle(glm::vec3(cos(two_pi<float>() * i / num_loops), 0, -sin(two_pi<float>() * i / num_loops)) * 1.4f, glm::vec3(sin(two_pi<float>() * i / num_loops), 0, cos(two_pi<float>() * i / num_loops)), 1.0, 1.0, 100));
+    }
 
     std::vector<Trace> traces;
 
-    int levels = 4;
-    int samples = 8;
+    int levels = 6;
+    int samples = 16;
 
     for(int r = 0; r < levels; r++) {
         for(int i = 0; i < samples; i++) {
             Trace t = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0+1.4, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, 0.0));
-            t.generate_path(loops, 0.05, 25, true);
+            Trace t2 = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0+1.4, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, 0.0));
+            t.generate_path(loops, 0.005, 1000, true);
+            t2.generate_path(loops, 0.005, 1000, false);
             traces.push_back(t);
+            traces.push_back(t2);
         }
     }
-
-    // for(int r = 0; r < levels; r++) {
-    //     for(int i = 0; i < samples; i++) {
-    //         Trace t = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, -0.5));
-    //         Trace t2 = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, -0.5));
-    //         t.generate_path(loops, 0.01, 100, true);
-    //         t2.generate_path(loops, 0.01, 100, false);
-    //         traces.push_back(t);
-    //         traces.push_back(t2);
-    //     }
-    // }
 
     // GL Processing Below
     GLfloat *vtmp, *ctmp;

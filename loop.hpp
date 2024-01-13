@@ -30,7 +30,24 @@ public:
         for(int i = 0; i < segments; i++) {
             vec3 p = center + perp1 * cos(two_pi<float>() * i / segments) * radius + perp2 * sin(two_pi<float>() * i / segments) * radius;
             result.add_point(p);
-            std::cout << p.x << ":" << p.y << ":" << p.z << std::endl;
+        }
+        result.set_current(current);
+        return result;
+    }
+    static const Loop create_sine_circle(vec3 center, vec3 norm, float radius, float current, int segments) {
+        Loop result;
+        vec3 perp1;
+        vec3 perp2;
+        norm = normalize(norm);
+        if (abs(norm.x) < 0.5) {
+            perp1 = normalize(cross(norm, vec3(1, 0, 0)));
+        } else {
+            perp1 = normalize(cross(norm, vec3(0, 1, 0)));
+        }
+        perp2 = cross(perp1, norm);
+        for(int i = 0; i < segments; i++) {
+            vec3 p = center + perp1 * cos(two_pi<float>() * i / segments) * radius + perp2 * sin(two_pi<float>() * i / segments) * radius + norm * 0.2f * sin(two_pi<float>() * (float)i * 5.0f / (float)segments);
+            result.add_point(p);
         }
         result.set_current(current);
         return result;
