@@ -1,5 +1,7 @@
 #include "loadShader.hpp"
 #include "line.hpp"
+#include "loop.hpp"
+#include "trace.hpp"
 
 #define GLFW_INCLUDE_GLCOREARB
 // #include <GL/glew.h>
@@ -64,464 +66,57 @@ GLuint vertexbuffer;
 GLuint colorbuffer;
 glm::mat4 Projection = glm::perspective(glm::radians(view->fov), (float)width / (float)height, 0.1f, 100.0f);
 
-GLfloat *g_compiled_vertex_data = new GLfloat[0];
-GLfloat *g_compiled_color_data = new GLfloat[0];
-int compiled_length = 0;
-int compiled_vertices = 0;
+std::vector<GLfloat*> g_compiled_vertex_data_loops;
+std::vector<GLfloat*> g_compiled_color_data_loops;
+std::vector<int> compiled_vertices_loops;
 
-glm::vec3 pseudo_bs(Line *wire, int wires, int len, glm::vec3 r) {
-    glm::vec3 result(0, 0, 0);
-    for(int w = 0; w < wires; w++) {
-        for(int i = 0; i < len; i++) {
-            int index = w * len + i;
-            result += glm::cross(wire[index].stroke(), glm::normalize(r - wire[index].start)) / glm::length(r - wire[index].start) / glm::length(r - wire[index].start);
-        }
-    }
-    return result;
-}
-
-glm::vec3 hsvToRgb(glm::vec3 hsv)
-{
-    double      hh, p, q, t, ff;
-    long        i;
-    glm::vec3         out;
-
-    if(hsv.s <= 0.0) {       // < is bogus, just shuts up warnings
-        out.x = hsv.z;
-        out.y = hsv.z;
-        out.z = hsv.z;
-        return out;
-    }
-    hh = hsv.x;
-    if(hh >= 1.0) hh = 0.0;
-    hh *= 6;
-    i = (long)hh;
-    ff = hh - i;
-    p = hsv.z * (1.0 - hsv.y);
-    q = hsv.z * (1.0 - (hsv.y * ff));
-    t = hsv.z * (1.0 - (hsv.y * (1.0 - ff)));
-
-    switch(i) {
-    case 0:
-        out.x = hsv.z;
-        out.y = t;
-        out.z = p;
-        break;
-    case 1:
-        out.x = q;
-        out.y = hsv.z;
-        out.z = p;
-        break;
-    case 2:
-        out.x = p;
-        out.y = hsv.z;
-        out.z = t;
-        break;
-
-    case 3:
-        out.x = p;
-        out.y = q;
-        out.z = hsv.z;
-        break;
-    case 4:
-        out.x = t;
-        out.y = p;
-        out.z = hsv.z;
-        break;
-    case 5:
-    default:
-        out.x = hsv.z;
-        out.y = p;
-        out.z = q;
-        break;
-    }
-    return out;     
-}
+std::vector<GLfloat*> g_compiled_vertex_data_traces;
+std::vector<GLfloat*> g_compiled_color_data_traces;
+std::vector<int> compiled_vertices_traces;
 
 void compile_em()
 {
-    // Wires
-    int wires = 4;
-    int segments = 80;
-    Line wire[wires][segments];
-    for (int i = 0; i < segments; i++)
-    {
-        wire[0][i] = Line(glm::vec3(glm::cos(glm::two_pi<float>() * i / segments)-1.4, glm::sin(glm::two_pi<float>() * i / segments), 0.0), glm::vec3(glm::cos(glm::two_pi<float>() * (i+1) / segments)-1.4, glm::sin(glm::two_pi<float>() * (i+1) / segments), 0.0));
-        wire[1][i] = Line(glm::vec3(glm::cos(glm::two_pi<float>() * i / segments)+1.4, -glm::sin(glm::two_pi<float>() * i / segments), 0.0), glm::vec3(glm::cos(glm::two_pi<float>() * (i+1) / segments)+1.4, -glm::sin(glm::two_pi<float>() * (i+1) / segments), 0.0));
-        wire[2][i] = Line(glm::vec3(0.0, glm::sin(glm::two_pi<float>() * i / segments), glm::cos(glm::two_pi<float>() * i / segments)-1.4), glm::vec3(0.0, glm::sin(glm::two_pi<float>() * (i+1) / segments), glm::cos(glm::two_pi<float>() * (i+1) / segments)-1.4));
-        wire[3][i] = Line(glm::vec3(0.0, -glm::sin(glm::two_pi<float>() * i / segments), glm::cos(glm::two_pi<float>() * i / segments)+1.4), glm::vec3(0.0, -glm::sin(glm::two_pi<float>() * (i+1) / segments), glm::cos(glm::two_pi<float>() * (i+1) / segments)+1.4));
+    std::vector<Loop> loops;
+    int num_loops = 12;
+    for(int i = 0; i < num_loops; i++) {
+        loops.push_back(Loop::create_sine_circle(glm::vec3(cos(two_pi<float>() * i / num_loops), 0, -sin(two_pi<float>() * i / num_loops)) * 1.4f, glm::vec3(sin(two_pi<float>() * i / num_loops), 0, cos(two_pi<float>() * i / num_loops)), 1.0, 1.0, 100));
     }
+    loops.push_back(Loop::create_circle(glm::vec3(0.0f, -0.4f, 0.0f), glm::vec3(0, 1, 0), 0.3, 4.0, 100));
+    loops.push_back(Loop::create_circle(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 1, 0), 0.3, 4.0, 100));
+    loops.push_back(Loop::create_circle(glm::vec3(0.0f, 0.4f, 0.0f), glm::vec3(0, 1, 0), 0.3, 4.0, 100));
 
-    int samples = 100;
-    int tracks = 50;
-    int layers = 10;
+    std::vector<Trace> traces;
 
-    compiled_vertices = 3 * 2 * 3 + wires * segments * 2 * 3 + wires * samples * 2 * 3 * tracks * layers;
-    compiled_length = compiled_vertices * sizeof(GLfloat);
-    delete[] g_compiled_vertex_data;
-    delete[] g_compiled_color_data;
-    g_compiled_vertex_data = new GLfloat[compiled_vertices];
-    g_compiled_color_data = new GLfloat[compiled_vertices];
-    int tmp_cnt = 0;
-    // Axis markers
-    g_compiled_vertex_data[0] = 0.0;
-    g_compiled_vertex_data[1] = 0.0;
-    g_compiled_vertex_data[2] = 0.0;
-    g_compiled_vertex_data[3] = 0.1;
-    g_compiled_vertex_data[4] = 0.0;
-    g_compiled_vertex_data[5] = 0.0;
+    int levels = 6;
+    int samples = 16;
 
-    g_compiled_vertex_data[6 + 0] = 0.0;
-    g_compiled_vertex_data[6 + 1] = 0.0;
-    g_compiled_vertex_data[6 + 2] = 0.0;
-    g_compiled_vertex_data[6 + 3] = 0.0;
-    g_compiled_vertex_data[6 + 4] = 0.1;
-    g_compiled_vertex_data[6 + 5] = 0.0;
-
-    g_compiled_vertex_data[2*6 + 0] = 0.0;
-    g_compiled_vertex_data[2*6 + 1] = 0.0;
-    g_compiled_vertex_data[2*6 + 2] = 0.0;
-    g_compiled_vertex_data[2*6 + 3] = 0.0;
-    g_compiled_vertex_data[2*6 + 4] = 0.0;
-    g_compiled_vertex_data[2*6 + 5] = 0.1;
-
-    g_compiled_color_data[0] = 1.0;
-    g_compiled_color_data[1] = 0.0;
-    g_compiled_color_data[2] = 0.0;
-    g_compiled_color_data[3] = 1.0;
-    g_compiled_color_data[4] = 0.0;
-    g_compiled_color_data[5] = 0.0;
-
-    g_compiled_color_data[6 + 0] = 0.0;
-    g_compiled_color_data[6 + 1] = 1.0;
-    g_compiled_color_data[6 + 2] = 0.0;
-    g_compiled_color_data[6 + 3] = 0.0;
-    g_compiled_color_data[6 + 4] = 1.0;
-    g_compiled_color_data[6 + 5] = 0.0;
-
-    g_compiled_color_data[2*6 + 0] = 0.0;
-    g_compiled_color_data[2*6 + 1] = 0.0;
-    g_compiled_color_data[2*6 + 2] = 1.0;
-    g_compiled_color_data[2*6 + 3] = 0.0;
-    g_compiled_color_data[2*6 + 4] = 0.0;
-    g_compiled_color_data[2*6 + 5] = 1.0;
-
-    tmp_cnt = 18;
-
-    // Current wires
-    for(int w = 0; w < wires; w++) {
-        for(int i = 0; i < segments; i++) {
-            wire[w][i].append_vertices(g_compiled_vertex_data, tmp_cnt);
-            wire[w][i].append_colors(g_compiled_color_data, tmp_cnt);
-            tmp_cnt += 6;
+    for(int r = 0; r < levels; r++) {
+        for(int i = 0; i < samples; i++) {
+            Trace t = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0+1.4, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, 0.0));
+            Trace t2 = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0+1.4, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, 0.0));
+            // t.generate_path(loops, 0.005, 1000, true);
+            // t2.generate_path(loops, 0.005, 1000, false);
+            t.generate_dynamic_path(loops, 1000, true);
+            t2.generate_dynamic_path(loops, 1000, false);
+            traces.push_back(t);
+            traces.push_back(t2);
         }
     }
 
-    // B-field lines
-    for(int l = 0; l < layers; l++) {
-        for(int t = 0; t < tracks; t++) {
-            float len = 0.05;
-            glm::vec3 track1(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 + 1.4, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, 0.0);
-            glm::vec3 track2(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 + 1.4, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, 0.0);
-            for(int i = 0; i < samples / 2; i++) {
-                glm::vec b1 = pseudo_bs(&wire[0][0], wires, segments, track1);
-                glm::vec b2 = pseudo_bs(&wire[0][0], wires, segments, track2);
-                float bstrength1 = glm::length(b1);
-                float bstrength2 = glm::length(b2);
-                b1 = glm::normalize(b1) * len;
-                b2 = glm::normalize(b2) * len;
-
-                g_compiled_vertex_data[tmp_cnt + 0] = track1.x;
-                g_compiled_vertex_data[tmp_cnt + 1] = track1.y;
-                g_compiled_vertex_data[tmp_cnt + 2] = track1.z;
-                g_compiled_vertex_data[tmp_cnt + 3] = track1.x + b1.x;
-                g_compiled_vertex_data[tmp_cnt + 4] = track1.y + b1.y;
-                g_compiled_vertex_data[tmp_cnt + 5] = track1.z + b1.z;
-                
-                //glm::log(bstrength1 / 15.0f)+0.6
-                glm::vec3 c1 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(glm::log(bstrength1 * 10000)/8.0, 1.0f, 1.0f), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
-                // std::cout << bstrength1 / 15.0f << std::endl;
-
-                g_compiled_color_data[tmp_cnt + 0] = c1.x;
-                g_compiled_color_data[tmp_cnt + 1] = c1.y;
-                g_compiled_color_data[tmp_cnt + 2] = c1.z;
-                g_compiled_color_data[tmp_cnt + 3] = c1.x;
-                g_compiled_color_data[tmp_cnt + 4] = c1.y;
-                g_compiled_color_data[tmp_cnt + 5] = c1.z;
-                // g_compiled_color_data[tmp_cnt + 0] = 1;
-                // g_compiled_color_data[tmp_cnt + 1] = 1;
-                // g_compiled_color_data[tmp_cnt + 2] = 1;
-                // g_compiled_color_data[tmp_cnt + 3] = 1;
-                // g_compiled_color_data[tmp_cnt + 4] = 1;
-                // g_compiled_color_data[tmp_cnt + 5] = 1;
-
-                g_compiled_vertex_data[tmp_cnt + 6] = track2.x;
-                g_compiled_vertex_data[tmp_cnt + 7] = track2.y;
-                g_compiled_vertex_data[tmp_cnt + 8] = track2.z;
-                g_compiled_vertex_data[tmp_cnt + 9] = track2.x - b2.x;
-                g_compiled_vertex_data[tmp_cnt + 10] = track2.y - b2.y;
-                g_compiled_vertex_data[tmp_cnt + 11] = track2.z - b2.z;
-
-                //glm::log(bstrength2 / 15.0f)+0.6
-                glm::vec3 c2 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(glm::log(bstrength1 * 10000)/8.0, 1.0f, 1.0f), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
-
-                g_compiled_color_data[tmp_cnt + 6] = c2.x;
-                g_compiled_color_data[tmp_cnt + 7] = c2.y;
-                g_compiled_color_data[tmp_cnt + 8] = c2.z;
-                g_compiled_color_data[tmp_cnt + 9] = c2.x;
-                g_compiled_color_data[tmp_cnt + 10] = c2.y;
-                g_compiled_color_data[tmp_cnt + 11] = c2.z;
-                // g_compiled_color_data[tmp_cnt + 6] = 1;
-                // g_compiled_color_data[tmp_cnt + 7] = 1;
-                // g_compiled_color_data[tmp_cnt + 8] = 1;
-                // g_compiled_color_data[tmp_cnt + 9] = 1;
-                // g_compiled_color_data[tmp_cnt + 10] = 1;
-                // g_compiled_color_data[tmp_cnt + 11] = 1;
-
-                tmp_cnt += 12;
-                track1 += b1;
-                track2 -= b2;
-            }
-        }
+    // GL Processing Below
+    GLfloat *vtmp, *ctmp;
+    for(int i = 0; i < loops.size(); i++) {
+        int cvert = loops[i].gl_generate(&vtmp, &ctmp);
+        g_compiled_vertex_data_loops.push_back(vtmp);
+        g_compiled_color_data_loops.push_back(ctmp);
+        compiled_vertices_loops.push_back(cvert);
     }
-    for(int l = 0; l < layers; l++) {
-        for(int t = 0; t < tracks; t++) {
-            float len = 0.05;
-            glm::vec3 track1(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 - 1.4, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, 0.0);
-            glm::vec3 track2(glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 - 1.4, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, 0.0);
-            for(int i = 0; i < samples / 2; i++) {
-                glm::vec b1 = pseudo_bs(&wire[0][0], wires, segments, track1);
-                glm::vec b2 = pseudo_bs(&wire[0][0], wires, segments, track2);
-                float bstrength1 = glm::length(b1);
-                float bstrength2 = glm::length(b2);
-                b1 = glm::normalize(b1) * len;
-                b2 = glm::normalize(b2) * len;
-
-                g_compiled_vertex_data[tmp_cnt + 0] = track1.x;
-                g_compiled_vertex_data[tmp_cnt + 1] = track1.y;
-                g_compiled_vertex_data[tmp_cnt + 2] = track1.z;
-                g_compiled_vertex_data[tmp_cnt + 3] = track1.x + b1.x;
-                g_compiled_vertex_data[tmp_cnt + 4] = track1.y + b1.y;
-                g_compiled_vertex_data[tmp_cnt + 5] = track1.z + b1.z;
-                
-                //glm::log(bstrength1 / 15.0f)+0.6
-                glm::vec3 c1 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength1 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
-                // std::cout << bstrength1 / 15.0f << std::endl;
-
-                g_compiled_color_data[tmp_cnt + 0] = c1.x;
-                g_compiled_color_data[tmp_cnt + 1] = c1.y;
-                g_compiled_color_data[tmp_cnt + 2] = c1.z;
-                g_compiled_color_data[tmp_cnt + 3] = c1.x;
-                g_compiled_color_data[tmp_cnt + 4] = c1.y;
-                g_compiled_color_data[tmp_cnt + 5] = c1.z;
-                // g_compiled_color_data[tmp_cnt + 0] = 1;
-                // g_compiled_color_data[tmp_cnt + 1] = 1;
-                // g_compiled_color_data[tmp_cnt + 2] = 1;
-                // g_compiled_color_data[tmp_cnt + 3] = 1;
-                // g_compiled_color_data[tmp_cnt + 4] = 1;
-                // g_compiled_color_data[tmp_cnt + 5] = 1;
-
-                g_compiled_vertex_data[tmp_cnt + 6] = track2.x;
-                g_compiled_vertex_data[tmp_cnt + 7] = track2.y;
-                g_compiled_vertex_data[tmp_cnt + 8] = track2.z;
-                g_compiled_vertex_data[tmp_cnt + 9] = track2.x - b2.x;
-                g_compiled_vertex_data[tmp_cnt + 10] = track2.y - b2.y;
-                g_compiled_vertex_data[tmp_cnt + 11] = track2.z - b2.z;
-
-                //glm::log(bstrength2 / 15.0f)+0.6
-                glm::vec3 c2 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength2 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
-
-                g_compiled_color_data[tmp_cnt + 6] = c2.x;
-                g_compiled_color_data[tmp_cnt + 7] = c2.y;
-                g_compiled_color_data[tmp_cnt + 8] = c2.z;
-                g_compiled_color_data[tmp_cnt + 9] = c2.x;
-                g_compiled_color_data[tmp_cnt + 10] = c2.y;
-                g_compiled_color_data[tmp_cnt + 11] = c2.z;
-                // g_compiled_color_data[tmp_cnt + 6] = 1;
-                // g_compiled_color_data[tmp_cnt + 7] = 1;
-                // g_compiled_color_data[tmp_cnt + 8] = 1;
-                // g_compiled_color_data[tmp_cnt + 9] = 1;
-                // g_compiled_color_data[tmp_cnt + 10] = 1;
-                // g_compiled_color_data[tmp_cnt + 11] = 1;
-
-                tmp_cnt += 12;
-                track1 += b1;
-                track2 -= b2;
-            }
-        }
+    for(int i = 0; i < traces.size(); i++) {
+        int cvert = traces[i].gl_generate(&vtmp, &ctmp);
+        g_compiled_vertex_data_traces.push_back(vtmp);
+        g_compiled_color_data_traces.push_back(ctmp);
+        compiled_vertices_traces.push_back(cvert);
     }
-    for(int l = 0; l < layers; l++) {
-        for(int t = 0; t < tracks; t++) {
-            float len = 0.05;
-            glm::vec3 track1(0.0f, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 + 1.4);
-            glm::vec3 track2(0.0f, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 + 1.4);
-            for(int i = 0; i < samples / 2; i++) {
-                glm::vec b1 = pseudo_bs(&wire[0][0], wires, segments, track1);
-                glm::vec b2 = pseudo_bs(&wire[0][0], wires, segments, track2);
-                float bstrength1 = glm::length(b1);
-                float bstrength2 = glm::length(b2);
-                b1 = glm::normalize(b1) * len;
-                b2 = glm::normalize(b2) * len;
-
-                g_compiled_vertex_data[tmp_cnt + 0] = track1.x;
-                g_compiled_vertex_data[tmp_cnt + 1] = track1.y;
-                g_compiled_vertex_data[tmp_cnt + 2] = track1.z;
-                g_compiled_vertex_data[tmp_cnt + 3] = track1.x + b1.x;
-                g_compiled_vertex_data[tmp_cnt + 4] = track1.y + b1.y;
-                g_compiled_vertex_data[tmp_cnt + 5] = track1.z + b1.z;
-                
-                //glm::log(bstrength1 / 15.0f)+0.6
-                glm::vec3 c1 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength1 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
-                // std::cout << bstrength1 / 15.0f << std::endl;
-
-                g_compiled_color_data[tmp_cnt + 0] = c1.x;
-                g_compiled_color_data[tmp_cnt + 1] = c1.y;
-                g_compiled_color_data[tmp_cnt + 2] = c1.z;
-                g_compiled_color_data[tmp_cnt + 3] = c1.x;
-                g_compiled_color_data[tmp_cnt + 4] = c1.y;
-                g_compiled_color_data[tmp_cnt + 5] = c1.z;
-                // g_compiled_color_data[tmp_cnt + 0] = 1;
-                // g_compiled_color_data[tmp_cnt + 1] = 1;
-                // g_compiled_color_data[tmp_cnt + 2] = 1;
-                // g_compiled_color_data[tmp_cnt + 3] = 1;
-                // g_compiled_color_data[tmp_cnt + 4] = 1;
-                // g_compiled_color_data[tmp_cnt + 5] = 1;
-
-                g_compiled_vertex_data[tmp_cnt + 6] = track2.x;
-                g_compiled_vertex_data[tmp_cnt + 7] = track2.y;
-                g_compiled_vertex_data[tmp_cnt + 8] = track2.z;
-                g_compiled_vertex_data[tmp_cnt + 9] = track2.x - b2.x;
-                g_compiled_vertex_data[tmp_cnt + 10] = track2.y - b2.y;
-                g_compiled_vertex_data[tmp_cnt + 11] = track2.z - b2.z;
-
-                //glm::log(bstrength2 / 15.0f)+0.6
-                glm::vec3 c2 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength2 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
-
-                g_compiled_color_data[tmp_cnt + 6] = c2.x;
-                g_compiled_color_data[tmp_cnt + 7] = c2.y;
-                g_compiled_color_data[tmp_cnt + 8] = c2.z;
-                g_compiled_color_data[tmp_cnt + 9] = c2.x;
-                g_compiled_color_data[tmp_cnt + 10] = c2.y;
-                g_compiled_color_data[tmp_cnt + 11] = c2.z;
-                // g_compiled_color_data[tmp_cnt + 6] = 1;
-                // g_compiled_color_data[tmp_cnt + 7] = 1;
-                // g_compiled_color_data[tmp_cnt + 8] = 1;
-                // g_compiled_color_data[tmp_cnt + 9] = 1;
-                // g_compiled_color_data[tmp_cnt + 10] = 1;
-                // g_compiled_color_data[tmp_cnt + 11] = 1;
-
-                tmp_cnt += 12;
-                track1 += b1;
-                track2 -= b2;
-            }
-        }
-    }
-    for(int l = 0; l < layers; l++) {
-        for(int t = 0; t < tracks; t++) {
-            float len = 0.05;
-            glm::vec3 track1(0.0f, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 - 1.4);
-            glm::vec3 track2(0.0f, glm::sin(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0, glm::cos(glm::two_pi<float>() * t / 50.0) * (((float)l+0.5) / (float)(layers+1)) * 1.0 - 1.4);
-            for(int i = 0; i < samples / 2; i++) {
-                glm::vec b1 = pseudo_bs(&wire[0][0], wires, segments, track1);
-                glm::vec b2 = pseudo_bs(&wire[0][0], wires, segments, track2);
-                float bstrength1 = glm::length(b1);
-                float bstrength2 = glm::length(b2);
-                b1 = glm::normalize(b1) * len;
-                b2 = glm::normalize(b2) * len;
-
-                g_compiled_vertex_data[tmp_cnt + 0] = track1.x;
-                g_compiled_vertex_data[tmp_cnt + 1] = track1.y;
-                g_compiled_vertex_data[tmp_cnt + 2] = track1.z;
-                g_compiled_vertex_data[tmp_cnt + 3] = track1.x + b1.x;
-                g_compiled_vertex_data[tmp_cnt + 4] = track1.y + b1.y;
-                g_compiled_vertex_data[tmp_cnt + 5] = track1.z + b1.z;
-                
-                //glm::log(bstrength1 / 15.0f)+0.6
-                glm::vec3 c1 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength1 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
-                // std::cout << bstrength1 / 15.0f << std::endl;
-
-                g_compiled_color_data[tmp_cnt + 0] = c1.x;
-                g_compiled_color_data[tmp_cnt + 1] = c1.y;
-                g_compiled_color_data[tmp_cnt + 2] = c1.z;
-                g_compiled_color_data[tmp_cnt + 3] = c1.x;
-                g_compiled_color_data[tmp_cnt + 4] = c1.y;
-                g_compiled_color_data[tmp_cnt + 5] = c1.z;
-                // g_compiled_color_data[tmp_cnt + 0] = 1;
-                // g_compiled_color_data[tmp_cnt + 1] = 1;
-                // g_compiled_color_data[tmp_cnt + 2] = 1;
-                // g_compiled_color_data[tmp_cnt + 3] = 1;
-                // g_compiled_color_data[tmp_cnt + 4] = 1;
-                // g_compiled_color_data[tmp_cnt + 5] = 1;
-
-                g_compiled_vertex_data[tmp_cnt + 6] = track2.x;
-                g_compiled_vertex_data[tmp_cnt + 7] = track2.y;
-                g_compiled_vertex_data[tmp_cnt + 8] = track2.z;
-                g_compiled_vertex_data[tmp_cnt + 9] = track2.x - b2.x;
-                g_compiled_vertex_data[tmp_cnt + 10] = track2.y - b2.y;
-                g_compiled_vertex_data[tmp_cnt + 11] = track2.z - b2.z;
-
-                //glm::log(bstrength2 / 15.0f)+0.6
-                glm::vec3 c2 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength2 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
-
-                g_compiled_color_data[tmp_cnt + 6] = c2.x;
-                g_compiled_color_data[tmp_cnt + 7] = c2.y;
-                g_compiled_color_data[tmp_cnt + 8] = c2.z;
-                g_compiled_color_data[tmp_cnt + 9] = c2.x;
-                g_compiled_color_data[tmp_cnt + 10] = c2.y;
-                g_compiled_color_data[tmp_cnt + 11] = c2.z;
-                // g_compiled_color_data[tmp_cnt + 6] = 1;
-                // g_compiled_color_data[tmp_cnt + 7] = 1;
-                // g_compiled_color_data[tmp_cnt + 8] = 1;
-                // g_compiled_color_data[tmp_cnt + 9] = 1;
-                // g_compiled_color_data[tmp_cnt + 10] = 1;
-                // g_compiled_color_data[tmp_cnt + 11] = 1;
-
-                tmp_cnt += 12;
-                track1 += b1;
-                track2 -= b2;
-            }
-        }
-    }
-
-    std::cout << tmp_cnt << ":" << compiled_vertices << std::endl;
-
-    // for(int i = 0; i < tmp_cnt; i+=3) {
-    //     if(glm::abs(g_compiled_color_data[i])<=0.01f && glm::abs(g_compiled_color_data[i+1])<=0.01f && glm::abs(g_compiled_color_data[i+2])<=0.01f) {
-    //         std::cout << i << std::endl;
-    //     }
-    // }
-
-    // int tmp_cnt = 0;
-    // for(float x = -2; x <= 2; x+= 0.1) {
-    //     for(float y = -2; y <= 2; y+= 0.1) {
-    //         for(float z = -2; z <= 2; z+= 0.1) {
-    //             glm::vec b = pseudo_bs(wire, segments, glm::vec3(x, y, z));
-    //             float bstrength = glm::length(b);
-    //             b = glm::normalize(b) / 40.0f;
-    //             g_compiled_vertex_data[tmp_cnt + 0] = x + b.x;
-    //             g_compiled_vertex_data[tmp_cnt + 1] = y + b.y;
-    //             g_compiled_vertex_data[tmp_cnt + 2] = z + b.z;
-    //             g_compiled_vertex_data[tmp_cnt + 3] = x - b.x;
-    //             g_compiled_vertex_data[tmp_cnt + 4] = y - b.y;
-    //             g_compiled_vertex_data[tmp_cnt + 5] = z - b.z;
-
-    //             g_compiled_color_data[tmp_cnt + 0] = bstrength / 15.0f;
-    //             g_compiled_color_data[tmp_cnt + 1] = 0.0f;
-    //             g_compiled_color_data[tmp_cnt + 2] = 0.0f;
-    //             g_compiled_color_data[tmp_cnt + 3] = bstrength / 15.0f;
-    //             g_compiled_color_data[tmp_cnt + 4] = 0.0f;
-    //             g_compiled_color_data[tmp_cnt + 5] = 0.0f;
-
-    //             tmp_cnt += 6;
-    //         }
-    //     }
-    // }
-
-    glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-    glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_vertex_data, GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-    glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_color_data, GL_STATIC_DRAW);
-    glFlush();
 }
 
 /* input callbacks */
@@ -687,6 +282,23 @@ int main(int argc, char **argv)
     glGenBuffers(1, &vertexbuffer);
     glGenBuffers(1, &colorbuffer);
 
+    // generate axis markers
+    GLfloat axis_vertices[] = {
+        0.0f, 0.0f, 0.0f, // x
+        0.1f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, // y
+        0.0f, 0.1f, 0.0f,
+        0.0f, 0.0f, 0.0f, // z
+        0.0f, 0.0f, 0.1f};
+
+    GLfloat axis_colors[] = {
+        1.0f, 0.0f, 0.0f, // x
+        1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, // y
+        0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, // z
+        0.0f, 0.0f, 1.0f};
+
     compile_em();
 
     // Create and compile our GLSL program from the shaders
@@ -703,9 +315,10 @@ int main(int argc, char **argv)
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the buffers
 
-        // 1st attribute buffer : vertices
+        // draw the axis markers
         glEnableVertexAttribArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+        glBufferData(GL_ARRAY_BUFFER, 6 * 3 * sizeof(GLfloat), &axis_vertices, GL_STATIC_DRAW);
         glVertexAttribPointer(
             0,        // attribute 0. No particular reason for 0, but must match the layout in the shader.
             3,        // size
@@ -714,9 +327,9 @@ int main(int argc, char **argv)
             0,        // stride
             (void *)0 // array buffer offset
         );
-        // 2nd attribute buffer : colors
         glEnableVertexAttribArray(1);
         glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+        glBufferData(GL_ARRAY_BUFFER, 6 * 3 * sizeof(GLfloat), &axis_colors, GL_STATIC_DRAW);
         glVertexAttribPointer(
             1,        // attribute. No particular reason for 1, but must match the layout in the shader.
             3,        // size
@@ -725,9 +338,64 @@ int main(int argc, char **argv)
             0,        // stride
             (void *)0 // array buffer offset
         );
-        // Draw the triangle !
-        glDrawArrays(GL_LINES, 0, compiled_vertices / 2); // Starting from vertex 0; 3 vertices total -> 1 triangle
+        glDrawArrays(GL_LINES, 0, 6); // Starting from vertex 0; 3 vertices total -> 1 triangle
         glDisableVertexAttribArray(0);
+
+        for(int i = 0; i < g_compiled_vertex_data_loops.size(); i++) {
+            glEnableVertexAttribArray(0);
+            glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+            glBufferData(GL_ARRAY_BUFFER, compiled_vertices_loops[i] * 3 * sizeof(GLfloat), g_compiled_vertex_data_loops[i], GL_STATIC_DRAW);
+            glVertexAttribPointer(
+                0,        // attribute 0. No particular reason for 0, but must match the layout in the shader.
+                3,        // size
+                GL_FLOAT, // type
+                GL_FALSE, // normalized?
+                0,        // stride
+                (void *)0 // array buffer offset
+            );
+            glEnableVertexAttribArray(1);
+            glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+            glBufferData(GL_ARRAY_BUFFER, compiled_vertices_loops[i] * 3 * sizeof(GLfloat), g_compiled_color_data_loops[i], GL_STATIC_DRAW);
+            glVertexAttribPointer(
+                1,        // attribute. No particular reason for 1, but must match the layout in the shader.
+                3,        // size
+                GL_FLOAT, // type
+                GL_FALSE, // normalized?
+                0,        // stride
+                (void *)0 // array buffer offset
+            );
+            glDrawArrays(GL_LINE_LOOP, 0, compiled_vertices_loops[i]); // Starting from vertex 0; 3 vertices total -> 1 triangle
+            glDisableVertexAttribArray(0);
+        }
+        
+        for(int i = 0; i < g_compiled_vertex_data_traces.size(); i++) {
+            glEnableVertexAttribArray(0);
+            glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+            glBufferData(GL_ARRAY_BUFFER, compiled_vertices_traces[i] * 3 * sizeof(GLfloat), g_compiled_vertex_data_traces[i], GL_STATIC_DRAW);
+            glVertexAttribPointer(
+                0,        // attribute 0. No particular reason for 0, but must match the layout in the shader.
+                3,        // size
+                GL_FLOAT, // type
+                GL_FALSE, // normalized?
+                0,        // stride
+                (void *)0 // array buffer offset
+            );
+            glEnableVertexAttribArray(1);
+            glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+            glBufferData(GL_ARRAY_BUFFER, compiled_vertices_traces[i] * 3 * sizeof(GLfloat), g_compiled_color_data_traces[i], GL_STATIC_DRAW);
+            glVertexAttribPointer(
+                1,        // attribute. No particular reason for 1, but must match the layout in the shader.
+                3,        // size
+                GL_FLOAT, // type
+                GL_FALSE, // normalized?
+                0,        // stride
+                (void *)0 // array buffer offset
+            );
+            glDrawArrays(GL_LINE_STRIP, 0, compiled_vertices_traces[i]); // Starting from vertex 0; 3 vertices total -> 1 triangle
+            glDisableVertexAttribArray(0);
+        }
+
+        glFlush();
 
         /* Swap front and back buffers */
         glfwSwapBuffers(window);
