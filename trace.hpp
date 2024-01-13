@@ -49,6 +49,18 @@ public:
             b.push_back(length(bvec));
         }
     }
+    void generate_dynamic_path(vector<Loop> loops, int segments, bool forward) {
+        for(int i = 0; i < segments; i++) {
+            vec3 bvec(0, 0, 0);
+            for(int l = 0; l < loops.size(); l++) {
+                bvec += loops[l].biot_savart(points[i]);
+            }
+            float bfield = length(bvec);
+            vec3 delta = normalize(bvec) * ((i == 0) ? 0.01f : std::abs(dot(normalize(bvec), points[i]-points[i-1])));
+            points.push_back(forward ? points[i] + delta : points[i] - delta);
+            b.push_back(length(bvec));
+        }
+    }
     int gl_generate(GLfloat **vectors, GLfloat **colors) {
         *vectors = new GLfloat[3 * points.size()];
         *colors = new GLfloat[3 * points.size()];
