@@ -66,30 +66,60 @@ GLuint vertexbuffer;
 GLuint colorbuffer;
 glm::mat4 Projection = glm::perspective(glm::radians(view->fov), (float)width / (float)height, 0.1f, 100.0f);
 
-GLfloat *g_compiled_vertex_data = new GLfloat[0];
-GLfloat *g_compiled_color_data = new GLfloat[0];
-int compiled_length = 0;
-int compiled_vertices = 0;
+std::vector<GLfloat*> g_compiled_vertex_data_loops;
+std::vector<GLfloat*> g_compiled_color_data_loops;
+std::vector<int> compiled_vertices_loops;
+
+std::vector<GLfloat*> g_compiled_vertex_data_traces;
+std::vector<GLfloat*> g_compiled_color_data_traces;
+std::vector<int> compiled_vertices_traces;
 
 void compile_em()
 {
-    // compiled_vertices = 3 * 2 * 3 + wires * segments * 2 * 3 + wires * samples * 2 * 3 * tracks * layers;
-    // compiled_length = compiled_vertices * sizeof(GLfloat);
-    delete[] g_compiled_vertex_data;
-    delete[] g_compiled_color_data;
+    std::vector<Loop> loops;
+    loops.push_back(Loop::create_circle(glm::vec3(1.4, 0, 0), glm::vec3(0, 0, 1), 1.0, 1.0, 50));
+    loops.push_back(Loop::create_circle(glm::vec3(0, 0, 1.4), glm::vec3(-1, 0, 0), 1.0, 1.0, 50));
+    loops.push_back(Loop::create_circle(glm::vec3(-1.4, 0, 0), glm::vec3(0, 0, -1), 1.0, 1.0, 50));
+    loops.push_back(Loop::create_circle(glm::vec3(0, 0, -1.4), glm::vec3(1, 0, 0), 1.0, 1.0, 50));
 
-    Loop loop = Loop::create_circle(glm::vec3(0, 0, 0), glm::vec3(0, 0, 1), 1, 1, 10);
-    
-    compiled_vertices = loop.gl_generate(g_compiled_vertex_data, g_compiled_color_data);
-    compiled_length = compiled_vertices * sizeof(GLfloat);
+    std::vector<Trace> traces;
 
-    std::cout << compiled_vertices << std::endl;
+    int levels = 4;
+    int samples = 8;
 
-    glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-    glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_vertex_data, GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-    glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_color_data, GL_STATIC_DRAW);
-    glFlush();
+    for(int r = 0; r < levels; r++) {
+        for(int i = 0; i < samples; i++) {
+            Trace t = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0+1.4, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, 0.0));
+            t.generate_path(loops, 0.05, 25, true);
+            traces.push_back(t);
+        }
+    }
+
+    // for(int r = 0; r < levels; r++) {
+    //     for(int i = 0; i < samples; i++) {
+    //         Trace t = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, -0.5));
+    //         Trace t2 = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, -0.5));
+    //         t.generate_path(loops, 0.01, 100, true);
+    //         t2.generate_path(loops, 0.01, 100, false);
+    //         traces.push_back(t);
+    //         traces.push_back(t2);
+    //     }
+    // }
+
+    // GL Processing Below
+    GLfloat *vtmp, *ctmp;
+    for(int i = 0; i < loops.size(); i++) {
+        int cvert = loops[i].gl_generate(&vtmp, &ctmp);
+        g_compiled_vertex_data_loops.push_back(vtmp);
+        g_compiled_color_data_loops.push_back(ctmp);
+        compiled_vertices_loops.push_back(cvert);
+    }
+    for(int i = 0; i < traces.size(); i++) {
+        int cvert = traces[i].gl_generate(&vtmp, &ctmp);
+        g_compiled_vertex_data_traces.push_back(vtmp);
+        g_compiled_color_data_traces.push_back(ctmp);
+        compiled_vertices_traces.push_back(cvert);
+    }
 }
 
 /* input callbacks */
@@ -255,6 +285,23 @@ int main(int argc, char **argv)
     glGenBuffers(1, &vertexbuffer);
     glGenBuffers(1, &colorbuffer);
 
+    // generate axis markers
+    GLfloat axis_vertices[] = {
+        0.0f, 0.0f, 0.0f, // x
+        0.1f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, // y
+        0.0f, 0.1f, 0.0f,
+        0.0f, 0.0f, 0.0f, // z
+        0.0f, 0.0f, 0.1f};
+
+    GLfloat axis_colors[] = {
+        1.0f, 0.0f, 0.0f, // x
+        1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, // y
+        0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, // z
+        0.0f, 0.0f, 1.0f};
+
     compile_em();
 
     // Create and compile our GLSL program from the shaders
@@ -271,9 +318,10 @@ int main(int argc, char **argv)
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the buffers
 
-        // 1st attribute buffer : vertices
+        // draw the axis markers
         glEnableVertexAttribArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+        glBufferData(GL_ARRAY_BUFFER, 6 * 3 * sizeof(GLfloat), &axis_vertices, GL_STATIC_DRAW);
         glVertexAttribPointer(
             0,        // attribute 0. No particular reason for 0, but must match the layout in the shader.
             3,        // size
@@ -282,9 +330,9 @@ int main(int argc, char **argv)
             0,        // stride
             (void *)0 // array buffer offset
         );
-        // 2nd attribute buffer : colors
         glEnableVertexAttribArray(1);
         glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+        glBufferData(GL_ARRAY_BUFFER, 6 * 3 * sizeof(GLfloat), &axis_colors, GL_STATIC_DRAW);
         glVertexAttribPointer(
             1,        // attribute. No particular reason for 1, but must match the layout in the shader.
             3,        // size
@@ -293,9 +341,64 @@ int main(int argc, char **argv)
             0,        // stride
             (void *)0 // array buffer offset
         );
-        // Draw the triangle !
-        glDrawArrays(GL_LINES, 0, compiled_vertices / 2); // Starting from vertex 0; 3 vertices total -> 1 triangle
+        glDrawArrays(GL_LINES, 0, 6); // Starting from vertex 0; 3 vertices total -> 1 triangle
         glDisableVertexAttribArray(0);
+
+        for(int i = 0; i < g_compiled_vertex_data_loops.size(); i++) {
+            glEnableVertexAttribArray(0);
+            glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+            glBufferData(GL_ARRAY_BUFFER, compiled_vertices_loops[i] * 3 * sizeof(GLfloat), g_compiled_vertex_data_loops[i], GL_STATIC_DRAW);
+            glVertexAttribPointer(
+                0,        // attribute 0. No particular reason for 0, but must match the layout in the shader.
+                3,        // size
+                GL_FLOAT, // type
+                GL_FALSE, // normalized?
+                0,        // stride
+                (void *)0 // array buffer offset
+            );
+            glEnableVertexAttribArray(1);
+            glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+            glBufferData(GL_ARRAY_BUFFER, compiled_vertices_loops[i] * 3 * sizeof(GLfloat), g_compiled_color_data_loops[i], GL_STATIC_DRAW);
+            glVertexAttribPointer(
+                1,        // attribute. No particular reason for 1, but must match the layout in the shader.
+                3,        // size
+                GL_FLOAT, // type
+                GL_FALSE, // normalized?
+                0,        // stride
+                (void *)0 // array buffer offset
+            );
+            glDrawArrays(GL_LINE_LOOP, 0, compiled_vertices_loops[i]); // Starting from vertex 0; 3 vertices total -> 1 triangle
+            glDisableVertexAttribArray(0);
+        }
+        
+        for(int i = 0; i < g_compiled_vertex_data_traces.size(); i++) {
+            glEnableVertexAttribArray(0);
+            glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+            glBufferData(GL_ARRAY_BUFFER, compiled_vertices_traces[i] * 3 * sizeof(GLfloat), g_compiled_vertex_data_traces[i], GL_STATIC_DRAW);
+            glVertexAttribPointer(
+                0,        // attribute 0. No particular reason for 0, but must match the layout in the shader.
+                3,        // size
+                GL_FLOAT, // type
+                GL_FALSE, // normalized?
+                0,        // stride
+                (void *)0 // array buffer offset
+            );
+            glEnableVertexAttribArray(1);
+            glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+            glBufferData(GL_ARRAY_BUFFER, compiled_vertices_traces[i] * 3 * sizeof(GLfloat), g_compiled_color_data_traces[i], GL_STATIC_DRAW);
+            glVertexAttribPointer(
+                1,        // attribute. No particular reason for 1, but must match the layout in the shader.
+                3,        // size
+                GL_FLOAT, // type
+                GL_FALSE, // normalized?
+                0,        // stride
+                (void *)0 // array buffer offset
+            );
+            glDrawArrays(GL_LINE_STRIP, 0, compiled_vertices_traces[i]); // Starting from vertex 0; 3 vertices total -> 1 triangle
+            glDisableVertexAttribArray(0);
+        }
+
+        glFlush();
 
         /* Swap front and back buffers */
         glfwSwapBuffers(window);

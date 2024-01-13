@@ -12,6 +12,7 @@ using namespace glm;
 
 class Loop {
 private:
+    static constexpr float mu_0 = 4 * pi<float>() * 1e-7; // N/A^2
     float current; // amps
     std::vector<vec3> points;
 public:
@@ -34,27 +35,27 @@ public:
         result.set_current(current);
         return result;
     }
-    int gl_generate(GLfloat *vectors, GLfloat *colors) {
-        vectors = new GLfloat[3 * points.size()];
-        colors = new GLfloat[3 * points.size()];
+    int gl_generate(GLfloat **vectors, GLfloat **colors) {
+        *vectors = new GLfloat[3 * points.size()];
+        *colors = new GLfloat[3 * points.size()];
         for(int i = 0; i < points.size(); i++) {
-            vectors[i*3+0] = points[i].x;
-            vectors[i*3+1] = points[i].y;
-            vectors[i*3+2] = points[i].z;
-            colors[i*3+0] = 1.0;
-            colors[i*3+1] = 1.0;
-            colors[i*3+2] = 1.0;
+            (*vectors)[i*3+0] = points[i].x;
+            (*vectors)[i*3+1] = points[i].y;
+            (*vectors)[i*3+2] = points[i].z;
+            (*colors)[i*3+0] = 1.0;
+            (*colors)[i*3+1] = 1.0;
+            (*colors)[i*3+2] = 1.0;
         }
-        return points.size() * 3;
+        return points.size();
     }
     void add_point(vec3 point) { points.push_back(point); }
-    void set_current(float current) { current = current; }
+    void set_current(float c) { current = c; }
     vec3 biot_savart(vec3 r) {
         vec3 result(0, 0, 0);
         for(int i = 0; i < points.size(); i++) {
             result += cross(points[(i+1)%points.size()]-points[i], normalize(r - points[i])) / length(r - points[i]) / length(r - points[i]);
         }
-        return result;
+        return result * mu_0 * current / 4.0f / pi<float>();
     }
     Loop() {}
 };
