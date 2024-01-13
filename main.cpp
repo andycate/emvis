@@ -152,7 +152,7 @@ void compile_em()
         wire[3][i] = Line(glm::vec3(0.0, -glm::sin(glm::two_pi<float>() * i / segments), glm::cos(glm::two_pi<float>() * i / segments)+1.4), glm::vec3(0.0, -glm::sin(glm::two_pi<float>() * (i+1) / segments), glm::cos(glm::two_pi<float>() * (i+1) / segments)+1.4));
     }
 
-    int samples = 40;
+    int samples = 100;
     int tracks = 50;
     int layers = 10;
 
@@ -239,7 +239,7 @@ void compile_em()
                 g_compiled_vertex_data[tmp_cnt + 5] = track1.z + b1.z;
                 
                 //glm::log(bstrength1 / 15.0f)+0.6
-                glm::vec3 c1 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength1 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
+                glm::vec3 c1 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(glm::log(bstrength1 * 10000)/8.0, 1.0f, 1.0f), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
                 // std::cout << bstrength1 / 15.0f << std::endl;
 
                 g_compiled_color_data[tmp_cnt + 0] = c1.x;
@@ -263,7 +263,7 @@ void compile_em()
                 g_compiled_vertex_data[tmp_cnt + 11] = track2.z - b2.z;
 
                 //glm::log(bstrength2 / 15.0f)+0.6
-                glm::vec3 c2 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(((float)l+0.5) / (float)(layers+1), 1.0f, glm::log(bstrength2 * 10000)/8.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
+                glm::vec3 c2 = glm::clamp(hsvToRgb(glm::clamp(glm::vec3(glm::log(bstrength1 * 10000)/8.0, 1.0f, 1.0f), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0))), glm::vec3(0.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0));
 
                 g_compiled_color_data[tmp_cnt + 6] = c2.x;
                 g_compiled_color_data[tmp_cnt + 7] = c2.y;
