@@ -14,6 +14,8 @@
 #include <iostream>
 #include <mutex>
 
+using namespace glm;
+
 namespace pcs {
     std::mutex ungenerated_trace_mtx;
     std::mutex trace_mtx;
@@ -39,13 +41,49 @@ namespace pcs {
     }
 
     void compile_em(std::vector<Loop> *loops, std::vector<Trace> *traces) {
-        int num_loops = 12;
-        for(int i = 0; i < num_loops; i++) {
-            loops->push_back(Loop::create_sine_circle(glm::vec3(cos(two_pi<float>() * i / num_loops), 0, -sin(two_pi<float>() * i / num_loops)) * 1.4f, glm::vec3(sin(two_pi<float>() * i / num_loops), 0, cos(two_pi<float>() * i / num_loops)), 1.0, 1.0, 100));
-        }
         loops->push_back(Loop::create_circle(glm::vec3(0.0f, -0.4f, 0.0f), glm::vec3(0, 1, 0), 0.3, 4.0, 100));
         loops->push_back(Loop::create_circle(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 1, 0), 0.3, 4.0, 100));
         loops->push_back(Loop::create_circle(glm::vec3(0.0f, 0.4f, 0.0f), glm::vec3(0, 1, 0), 0.3, 4.0, 100));
+
+        float t_major_radius = 1.4;
+        float t_minor_radius = 1.0;
+        float ring_radius = 0.125;
+        float ring_current = 10.0;
+        float tf_current = 1.0;
+
+        int inner_ring_cnt = 6;
+        int outer_ring_cnt = 16;
+        int top_ring_cnt = 12;
+
+        for(int i = 0; i < inner_ring_cnt; i++) {
+            vec3 c = vec3(cos(two_pi<float>() * i / inner_ring_cnt), 0, sin(two_pi<float>() * i / inner_ring_cnt)) * (t_major_radius-t_minor_radius);
+            loops->push_back(Loop::create_circle(c, c, ring_radius, ring_current, 40));
+        }
+
+        for(int i = 0; i < outer_ring_cnt; i++) {
+            vec3 c = vec3(cos(two_pi<float>() * i / outer_ring_cnt), 0, sin(two_pi<float>() * i / outer_ring_cnt)) * (t_major_radius+t_minor_radius);
+            loops->push_back(Loop::create_circle(c, -c, ring_radius, ring_current, 40));
+        }
+
+        for(int i = 0; i < top_ring_cnt; i++) {
+            vec3 c = vec3(cos(two_pi<float>() * i / top_ring_cnt), 0, sin(two_pi<float>() * i / top_ring_cnt)) * (t_major_radius) + vec3(0, 1, 0) * t_minor_radius;
+            loops->push_back(Loop::create_circle(c, vec3(0, -1, 0), ring_radius, ring_current, 40));
+        }
+
+        for(int i = 0; i < top_ring_cnt; i++) {
+            vec3 c = vec3(cos(two_pi<float>() * i / top_ring_cnt), 0, sin(two_pi<float>() * i / top_ring_cnt)) * (t_major_radius) - vec3(0, 1, 0) * t_minor_radius;
+            loops->push_back(Loop::create_circle(c, vec3(0, 1, 0), ring_radius, ring_current, 40));
+        }
+
+
+        int num_loops = 12;
+        for(int i = 0; i < num_loops; i++) {
+            loops->push_back(Loop::create_circle(glm::vec3(cos(two_pi<float>() * i / num_loops), 0, -sin(two_pi<float>() * i / num_loops)) * t_major_radius, glm::vec3(sin(two_pi<float>() * i / num_loops), 0, cos(two_pi<float>() * i / num_loops)), t_minor_radius, tf_current, 100));
+        }
+
+        loops->push_back(Loop::create_circle(glm::vec3(0, t_minor_radius, 0), glm::vec3(0, t_minor_radius, 0), t_major_radius + t_minor_radius, 0.2, 100));
+        loops->push_back(Loop::create_circle(glm::vec3(0, -t_minor_radius, 0), glm::vec3(0, t_minor_radius, 0), t_major_radius + t_minor_radius, 0.2, 100));
+
 
         int levels = 6;
         int samples = 16;
