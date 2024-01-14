@@ -120,4 +120,81 @@ namespace pcs {
         }
         std::cout << "after joins" << std::endl;
     }
+
+    void compile_em_bottle(std::vector<Loop> *loops, std::vector<Trace> *traces) {
+        loops->push_back(Loop::create_circle(glm::vec3(0.0f, 0.0f, -2.0f), glm::vec3(0, 0, 1), 0.5, 4.0, 100));
+        loops->push_back(Loop::create_circle(glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0, 0, 1), 1.0, 1.0, 100));
+        loops->push_back(Loop::create_circle(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 0, 1), 1.0, 1.0, 100));
+        loops->push_back(Loop::create_circle(glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0, 0, 1), 1.0, 1.0, 100));
+        loops->push_back(Loop::create_circle(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0, 0, 1), 0.5, 4.0, 100));
+
+        int levels = 6;
+        int samples = 16;
+        
+        std::vector<Trace> ungenerated_traces;
+
+        for(int r = 0; r < levels; r++) {
+            for(int i = 0; i < samples; i++) {
+                Trace t = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, 0.0), true);
+                Trace t2 = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, 0.0), false);
+                // t.generate_path(loops, 0.005, 1000, true);
+                // t2.generate_path(loops, 0.005, 1000, false);
+                // t.generate_dynamic_path(loops, 1000, true);
+                // t2.generate_dynamic_path(loops, 1000, false);
+                // traces->push_back(t);
+                // traces->push_back(t2);
+                ungenerated_traces.push_back(t);
+                ungenerated_traces.push_back(t2);
+            }
+        }
+
+        int conc = std::thread::hardware_concurrency();
+        std::cout << "threads: " << conc << std::endl;
+
+        std::thread ts[conc-1];
+        for(int i = 0; i < conc - 1; i++) {
+            ts[i] = std::thread(path_thread, loops, &ungenerated_traces, traces);
+        }
+        std::cout << "before main thread path calcs" << std::endl;
+        path_thread(loops, &ungenerated_traces, traces);
+        std::cout << "after main thread path calcs" << std::endl;
+        for(int i = 0; i < conc - 1; i++) {
+            ts[i].join();
+        }
+        std::cout << "after joins" << std::endl;
+    }
+
+
+    void compile_em_twist_test(std::vector<Loop> *loops, std::vector<Trace> *traces) {
+        loops->push_back(Loop::create_circle(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 0, 1), 1.0, 1.0, 100));
+
+        int levels = 6;
+        int samples = 16;
+        
+        std::vector<Trace> ungenerated_traces;
+
+        for(int r = 0; r < levels; r++) {
+            for(int i = 0; i < samples; i++) {
+                Trace t = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, 0.0), true);
+                Trace t2 = Trace(glm::vec3(glm::cos(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, glm::sin(glm::two_pi<float>() * i / samples)*(((float)r+0.5)/(float)(levels+1))*1.0, 0.0), false);
+                ungenerated_traces.push_back(t);
+                ungenerated_traces.push_back(t2);
+            }
+        }
+
+        int conc = std::thread::hardware_concurrency();
+        std::cout << "threads: " << conc << std::endl;
+
+        std::thread ts[conc-1];
+        for(int i = 0; i < conc - 1; i++) {
+            ts[i] = std::thread(path_thread, loops, &ungenerated_traces, traces);
+        }
+        std::cout << "before main thread path calcs" << std::endl;
+        path_thread(loops, &ungenerated_traces, traces);
+        std::cout << "after main thread path calcs" << std::endl;
+        for(int i = 0; i < conc - 1; i++) {
+            ts[i].join();
+        }
+        std::cout << "after joins" << std::endl;
+    }
 };

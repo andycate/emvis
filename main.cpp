@@ -80,7 +80,7 @@ void compile_em()
     std::vector<Loop> loops;
     std::vector<Trace> traces;
 
-    pcs::compile_em(&loops, &traces);
+    pcs::compile_em_bottle(&loops, &traces);
 
     // GL Processing Below
     GLfloat *vtmp, *ctmp;

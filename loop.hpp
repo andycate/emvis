@@ -70,7 +70,7 @@ public:
     vec3 biot_savart(vec3 r) {
         vec3 result(0, 0, 0);
         for(int i = 0; i < points.size(); i++) {
-            result += cross(points[(i+1)%points.size()]-points[i], normalize(r - points[i])) / length(r - points[i]) / length(r - points[i]);
+            result += cross(points[(i+1)%points.size()]-points[i], normalize(r - (points[(i+1)%points.size()]+points[i]) / 2.0f)) / length(r - (points[(i+1)%points.size()]+points[i]) / 2.0f) / length(r - (points[(i+1)%points.size()]+points[i]) / 2.0f);
         }
         return result * mu_0 * current / 4.0f / pi<float>();
     }
