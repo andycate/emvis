@@ -36,12 +36,13 @@ private:
     }
     vector<float> b;
     vector<vec3> points;
+    bool forward;
 public:
-    void generate_path(vector<Loop> loops, float step, int segments, bool forward) {
+    void generate_path(vector<Loop> *loops, float step, int segments) {
         for(int i = 0; i < segments; i++) {
             vec3 bvec(0, 0, 0);
-            for(int l = 0; l < loops.size(); l++) {
-                bvec += loops[l].biot_savart(points[i]);
+            for(int l = 0; l < loops->size(); l++) {
+                bvec += (*loops)[l].biot_savart(points[i]);
             }
             float bfield = length(bvec);
             vec3 delta = normalize(bvec) * step;
@@ -49,11 +50,11 @@ public:
             b.push_back(length(bvec));
         }
     }
-    void generate_dynamic_path(vector<Loop> loops, int segments, bool forward) {
+    void generate_dynamic_path(vector<Loop> *loops, int segments) {
         for(int i = 0; i < segments; i++) {
             vec3 bvec(0, 0, 0);
-            for(int l = 0; l < loops.size(); l++) {
-                bvec += loops[l].biot_savart(points[i]);
+            for(int l = 0; l < loops->size(); l++) {
+                bvec += (*loops)[l].biot_savart(points[i]);
             }
             float bfield = length(bvec);
             vec3 delta = normalize(bvec) * ((i == 0) ? 0.01f : std::abs(dot(normalize(bvec), points[i]-points[i-1])));
@@ -75,5 +76,5 @@ public:
         }
         return points.size();
     }
-    Trace(vec3 start) { points.push_back(start); }
+    Trace(vec3 start, bool f): forward(f) { points.push_back(start); }
 };
